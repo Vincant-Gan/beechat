@@ -1,0 +1,6 @@
+将网络模块与图形界面分开，
+图形界面：
+登录用signin_frame，聊天用chatFrame，加好友用addFriendFrame。
+其中最复杂的是chatFrame。
+
+将其分为displayBox,inputBox,friendListBox三个panel

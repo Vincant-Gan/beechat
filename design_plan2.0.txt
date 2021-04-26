@@ -1,0 +1,90 @@
+关于nat穿透：
+将服务器的ip与port写死在客户端程序中，当两个用户聊天时，文字与语音信息
+全部通过服务器转发，此时客户端是已知服务器ip，port的，而服务器收到来自
+客户端的报文时，就已经知道其公网ip与port了，因此此时不需要使用nat穿透.
+
+为了展示我们使用了nat穿透，可以在传输文件时提供两个选项，一种是通过服务器
+传输，这种情况会让文件留在服务器的聊天记录里，以后仍然可以查看，另一种是
+p2p传输，要求双方同时在线，此时双方的公网ip和port由服务器提供，文件直接
+传输，并且以后不会出现在聊天记录里。
+
+用户注册：
+用户发送一个如下格式的tcp报文(signup uid password)，服务器为其建档并回复'signup successfully'
+或'uid already exists'。
+
+signup 123456 654321
+
+用户登录：
+用户发送一个如下格式的tcp报文(signin uid password)，uid为10位阿拉伯数字字符串，
+password由客户端进行hash编码后发往服务器，服务器回应'signin successfully'、'uid not exits'或者'Wrong Password'。
+
+signin 456789 123456
+
+客户端在注册以及登录时，需要检查用户输入合法性：uid为6位数字，password中均为有效字符，即数字、英文字母大小写、下划线
+若登陆阶段指令出错，服务器返回'Wrong sign command'
+
+
+客户端要实现两个线程：
+一个线程负责发送指令与服务器进行交互
+另一个线程负责监听，监听内容分为两部分
+	一：交互回复
+	二：来自其他user的信息
+实质是为了将本地客户端和服务器端的交互信息（往往是客户端一问一答），
+与其他用户直接发送的消息（客户端不问，直接收到服务器信息），
+区分开来
+我的这个想法是基于python socket包的功能提出的，如果你用其他语言有更好方法的话，可以忽略上面双线程想法
+
+
+聊天内容：
+聊天内容分3种，文本，语音，文件。
+其中所有内容均用tcp传输，事实上一旦登陆成功后直到用户下线，tcp连接不会断开
+timestamp格式为202004131702
+
+文本采用tcp传输，请求格式如此：'uid1 to uid2 timestamp text\n文字内容\n'
+服务器根据对方在线与否回复'ok'或者'Target user offline'
+
+语音使用tcp传输，请求格式如此：'uid1 to uid2 timestamp audio 文件大小\ntimestemp_audio.??\n'
+语言命名格式为202104181109_audio.??。此处两个??是audio文件后缀
+文件使用tcp传输，请求格式如此：'uid1 to uid2 timestamp file 文件大小\n文件名\n'
+
+对于语音和文件传输，先发上述请求，再收到服务器端的'ok'回复后，再发送文件内容
+服务器接收文件内容完毕后，根据对方在线与否回复'ok'或者'Target user offline'
+
+p2p部分我还没做好，后面再商量
+p2p文件传输时则直接传输（文件名）\n（文件内容）。
+其中timestamp为时间戳，表示用户发送消息的时间，格式为202004131702。
+uid1为本机用户uid，uid2为这个消息的目标用户。
+
+
+聊天记录：
+我希望可以建立聊天记录功能，聊天记录由服务器保存为一个文件，客户端不保存。
+当用户上线时，不能看见聊天记录，但可以直接开始聊天，并且从此刻开始的聊天内容
+保存在程序运行内存中，在程序关闭时丢失。用户可以使用某个按钮获取聊天记录。
+
+客户端发送'uid1 history uid2 all'，uid1为本机的uid，uid2为聊天对象的uid。
+服务器将所有聊天记录tcp传输回来，所有聊天记录会以客户端发送的请求格式原模原样返回，即
+'uid1 to uid2 timestamp text\n文字内容\n'
+'uid1 to uid2 timestamp audio 文件大小\ntimestemp_audio.??\n'
+'uid1 to uid2 timestamp file 文件大小\n文件名\n'
+用户如果需要可以继续要求传回对应的语音或文件，客户端发送'uid1 history uid2 filename 文件名'
+其中文件名为请求格式中两个'\n'中间的内容
+
+uid1 history uid2 all
+若尚无聊天记录服务器返回'you two have no history yet'
+
+456789 history 123456 all
+
+uid1 history uid2 filename (文件名)
+若尚无该文件服务器返回'No such file'
+传文件时，发送方先发送字符串  'server_data_size'+str(len(file))
+接收方收到后根据length和接收窗口大小决定recv次数，并发送'ok'报文准备接收文件
+
+
+若会话阶段指令出错，服务器返回'Wrong  interact command'
+
+添加好友：
+用户发送"uid1 to uid2 addFriend"
+
+用户退出：
+无论是登录界面还是会话界面
+客户端程序结束时会发送一个'offline'给服务器，以通知下线。
