@@ -85,10 +85,8 @@ class signinFrame extends JFrame
                     String reply = new String(buff, StandardCharsets.UTF_8).trim();
                     if(reply.equals("signin successfully"))
                     {
-                        speakerReader.close();
-                        speakerWriter.close();
                         dispose();
-                        JFrame chacha = new chatFrame(speaker, uid);
+                        JFrame chacha = new chatFrame(speakerReader, speakerWriter, uid);
                         chacha.setVisible(true);
                     }
                     else if(reply.equals("uid not exists"))
@@ -119,10 +117,8 @@ class signinFrame extends JFrame
                     System.out.println(reply);
                     if(reply.equals("signup successfully"))
                     {
-                        speakerReader.close();
-                        speakerWriter.close();
                         dispose();
-                        JFrame chacha = new chatFrame(speaker, uid);
+                        JFrame chacha = new chatFrame(speakerReader, speakerWriter, uid);
                         chacha.setVisible(true);
                     }
                     else if(reply.equals("uid already exists"))

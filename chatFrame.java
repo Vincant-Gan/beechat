@@ -3,8 +3,8 @@ import java.awt.event.*;
 import javax.swing.*;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.event.ListSelectionEvent;
-import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Date;
@@ -20,23 +20,28 @@ class chatFrame extends JFrame
     friendListBox _f;
     DataInputStream speakerReader;
     DataOutputStream speakerWriter;
+    SimpleDateFormat ft;
 
-    public chatFrame(Socket s, String myUid)
+    public chatFrame(DataInputStream dis, DataOutputStream dos, String myUid)
     {
-        //网络初始化
+        //内存初始化
+        this.myUid = myUid;
+        myFriends = new ArrayList<friend>();
+        ft = new SimpleDateFormat("yyyy-MM-dd_hh:mm:ss");
+       //网络初始化
         try
         {
-            speakerReader = new DataInputStream(s.getInputStream());
-            speakerWriter = new DataOutputStream(s.getOutputStream());
+            speakerReader = dis;
+            speakerWriter = dos;
+            listening listener = new listening(this);
+            listener.start(myUid);
             //获取好友列表
             getFriendList();
         }catch(Exception e){
             e.printStackTrace();
         }
-        this.myUid = myUid;
-        //图形界面初始化
+       //图形界面初始化
         setTitle("Beechat");
-        myFriends = new ArrayList<friend>();
         _d = new displayBox();
         _f = new friendListBox();
         _i = new inputBox();
@@ -45,6 +50,8 @@ class chatFrame extends JFrame
         add(_i, BorderLayout.SOUTH);
         add(_d, BorderLayout.CENTER);
         pack();
+        addWindowListener(new windowClose());
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
     }
 
     private class displayBox extends JPanel
@@ -92,17 +99,18 @@ class chatFrame extends JFrame
                 {
                     try
                     {
-                        String message = "history " + myUid + chattingBoy.getUid();
+                        String message = "history " + myUid + " " + chattingBoy.getUid();
                         speakerWriter.write(message.getBytes());
                         ArrayList<String> historyBuff = new ArrayList<String>();
                         byte[] buff = new byte[1024];
                         while (true)
                         {
-                            speakerReader.read(buff);
-                            String strbuff = new String(buff, StandardCharsets.UTF_8).trim();
+                            int buffSize = speakerReader.read(buff);
+                            String strbuff = new String(buff, 0, buffSize, StandardCharsets.UTF_8);
                             if (strbuff.equals("flag")) break;
                             else historyBuff.add(strbuff);
                         }
+                        chattingBoy.setChatHistory(historyBuff);
                         showChatHistory();
                     }catch(Exception ee)
                     {
@@ -133,8 +141,8 @@ class chatFrame extends JFrame
                         String ajusted_msg = Arrays.toString(ajust_msg);
                         speakerWriter.write(ajusted_msg.getBytes());
                         byte[] buff = new byte[1024];
-                        speakerReader.read(buff);
-                        String reply = new String(buff, StandardCharsets.UTF_8).trim();
+                        int buffSize = speakerReader.read(buff);
+                        String reply = new String(buff, 0, buffSize, StandardCharsets.UTF_8);
                         _d.chatHistoryModel.addElement("开始下载");
                         if (reply.equals("ready"))
                         {
@@ -206,19 +214,19 @@ class chatFrame extends JFrame
     {
         JTextArea input;
         JButton sendButton;
-        JButton sendFilebButton;
+        JButton sendFileButton;
 
         public inputBox()
         {
             setLayout(new BorderLayout());
             sendButton = new JButton("发送");
             sendButton.addActionListener(new sendButtonListener());
-            sendFilebButton = new JButton("发送文件");
-            sendButton.addActionListener(new sendFilebButtonListener());
+            sendFileButton = new JButton("发送文件");
+            sendFileButton.addActionListener(new sendFilebButtonListener());
             input = new JTextArea();
             add(input, BorderLayout.CENTER);
             add(sendButton, BorderLayout.EAST);
-            add(sendFilebButton, BorderLayout.WEST);
+            add(sendFileButton, BorderLayout.WEST);
         }
 
         private class sendButtonListener implements ActionListener
@@ -233,8 +241,8 @@ class chatFrame extends JFrame
                 else
                 {
                     String toSend = input.getText();
-                    toSend = "text " + myUid + " " + chattingBoy.getUid() +
-                        new Date().toString() + "\n" + toSend;
+                    toSend = "text " + myUid + " " + chattingBoy.getUid() + " " +
+                       ft.format(new Date()) + "\n" + toSend;
                     chattingBoy.addChatHistory(toSend);
                     renderText(toSend.split(" |\n", 5));
                     try
@@ -252,6 +260,12 @@ class chatFrame extends JFrame
         {
             public void actionPerformed(ActionEvent e)
             {
+                if (chattingBoy == null)
+                {
+                    JOptionPane.showMessageDialog(null, 
+                    "你要发给谁？","错误", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
                 JFileChooser jfc = new JFileChooser();
                 jfc.setFileSelectionMode(JFileChooser.FILES_ONLY);
                 jfc.showDialog(new JLabel(), "选一个文件");
@@ -259,13 +273,13 @@ class chatFrame extends JFrame
                 String fileName = file.getName();
                 String fileSize = Long.toString(file.length());
                 String msg = "offlinefile " + myUid + " " + chattingBoy.getUid() + " "
-                    + new Date().toString() + " " + fileName + "\n" + fileSize;
+                    + ft.format(new Date()) + " " + fileName + "\n" + fileSize;
                 String reply;
                 byte[] data = new byte[1024];
                 try {
                     speakerWriter.write(msg.getBytes());
-                    speakerReader.read(data);
-                    reply = new String(data, StandardCharsets.UTF_8).trim();
+                    int buffSize = speakerReader.read(data);
+                    reply = new String(data, 0, buffSize, StandardCharsets.UTF_8);
                     if (reply.equals("ready"))
                     {
                         String toSend = "<html><font size=\"2\">" +
@@ -280,6 +294,9 @@ class chatFrame extends JFrame
                         }
                         fileReader.close();
                         renderFile(msg);
+                        String end = "<html><font size=\"2\">" +
+                            "发送完成!" + "</font></html>";
+                        _d.chatHistoryModel.addElement(end);
                     }
                 }catch(Exception ee)
                 {
@@ -289,6 +306,23 @@ class chatFrame extends JFrame
         }
     }
     
+    private class windowClose extends WindowAdapter
+    {
+        public void windowClosing(WindowEvent e)
+        {
+            super.windowClosing(e);
+            try
+            {
+                speakerWriter.write("offline".getBytes());
+                speakerWriter.close();
+                speakerReader.close();
+            }catch(Exception ee)
+            {
+                ee.printStackTrace();
+            }
+        }
+    }
+
     public String addFriend(String uid)
     {
         String toSend = "addFriend " + myUid + " " + uid;
@@ -296,8 +330,8 @@ class chatFrame extends JFrame
         {
             speakerWriter.write(toSend.getBytes());
             byte[] buff = new byte[1024];
-            speakerReader.read(buff);
-            String msg = new String(buff, StandardCharsets.UTF_8).trim();
+            int buffSize = speakerReader.read(buff);
+            String msg = new String(buff, 0, buffSize, StandardCharsets.UTF_8);
             if (msg.equals("agree"))
             {
                 myFriends.add(new friend(uid));
@@ -318,8 +352,12 @@ class chatFrame extends JFrame
         {
             speakerWriter.write(toSend.getBytes());
             byte[] buff = new byte[1024];
-            speakerReader.read(buff);
-            String msg = new String(buff, StandardCharsets.UTF_8).trim();
+            int buffSize = speakerReader.read(buff);
+            String msg = new String(buff, 0, buffSize, StandardCharsets.UTF_8);
+            if (msg.equals("empty"))
+            {
+                return;
+            }
             for (String ll : msg.split("\n"))
             {
                 String[] aa = ll.split(" ");
@@ -343,7 +381,8 @@ class chatFrame extends JFrame
     public void addText(String msg)
     {
         String[] msgs = msg.split(" |\n", 5);
-        if(msgs[2] == myUid)
+        System.out.println(msg);
+        if(msgs[2].equals(myUid))
         {
             int indexOfTheBoy = myFriends.indexOf(new friend(msgs[1]));
             if(indexOfTheBoy != -1){

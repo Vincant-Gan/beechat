@@ -25,12 +25,20 @@ public class listening implements Runnable {
         }
     }
 
-    public void start()
+    public void start(String uid)
     {
         if (t == null)
         {
             t = new Thread(this);
             t.start();
+            String msg = "hello from " + uid;
+            try
+            {
+                listenerWriter.write(msg.getBytes());
+            }catch(Exception e)
+            {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -39,32 +47,35 @@ public class listening implements Runnable {
         byte[] buff = new byte[1024];
         try
         {
-            listenerReader.read(buff);
-            String msg = new String(buff, StandardCharsets.UTF_8).trim();
-            String[] msgs = msg.split(" ", 3);
-            if(msgs[0].equals("text"))
+            while(true)
             {
-                oFrame.addText(msg);
-            }
-            else if(msgs[0].equals("addFriend") && msgs[2].equals(oFrame.getMyUid()))
-            {
-                String info = msgs[1] + "请求加为好友";
-                String[] options = {"同意", "不同意"};
-                int ans = JOptionPane.showOptionDialog(null, info, "好友请求",
-                    JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE,
-                    null, options, options[0]);
-                if (ans == JOptionPane.YES_OPTION)
+                int buffSize = listenerReader.read(buff);
+                String msg = new String(buff, 0, buffSize, StandardCharsets.UTF_8);
+                String[] msgs = msg.split(" ", 3);
+                if(msgs[0].equals("text"))
                 {
-                    listenerWriter.write("addFriend agree".getBytes());
+                    oFrame.addText(msg);
                 }
-                else
+                else if(msgs[0].equals("addFriend") && msgs[2].equals(oFrame.getMyUid()))
                 {
-                    listenerWriter.write("addFriend disagree".getBytes());
+                    String info = msgs[1] + "请求加为好友";
+                    String[] options = {"同意", "不同意"};
+                    int ans = JOptionPane.showOptionDialog(null, info, "好友请求",
+                        JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE,
+                        null, options, options[0]);
+                    if (ans == JOptionPane.YES_OPTION)
+                    {
+                        listenerWriter.write("addFriend agree".getBytes());
+                    }
+                    else
+                    {
+                        listenerWriter.write("addFriend disagree".getBytes());
+                    }
                 }
-            }
-            else if(msgs[0].equals("file"))
-            {
-                oFrame.addFile(msg);
+                else if(msgs[0].equals("file"))
+                {
+                    oFrame.addFile(msg);
+                }
             }
         }catch(Exception e)
         {
