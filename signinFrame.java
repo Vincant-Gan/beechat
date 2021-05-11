@@ -1,6 +1,9 @@
 import java.awt.*;
 import java.awt.event.*;
 import javax.swing.*;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
+import java.io.*;
 
 class signinFrame extends JFrame
 {
@@ -10,10 +13,12 @@ class signinFrame extends JFrame
     private static final long serialVersionUID = 1L;
     private JTextField uidBox;
     private JPasswordField passwordBox;
+    Socket speaker;
 
-    public signinFrame()
+    public signinFrame(Socket s)
     {
-        setTitle("Beechat welcome using Beechat");
+        speaker = s;
+        setTitle("Beechat");
         //登录界面的大panel
         JPanel signinPanel = new JPanel();
         signinPanel.setLayout(new BorderLayout());
@@ -22,6 +27,7 @@ class signinFrame extends JFrame
         inputBox.setLayout(new GridLayout(2, 2));
         //uid与密码输入框加入input panel
         uidBox = new JTextField();
+        uidBox.setText("1234567890");
         passwordBox = new JPasswordField();
         JLabel uid = new JLabel("uid:", JLabel.CENTER);
         JLabel pswd = new JLabel("密码：", JLabel.CENTER);
@@ -52,6 +58,7 @@ class signinFrame extends JFrame
         Toolkit kit = Toolkit.getDefaultToolkit();
         Dimension screenSize = kit.getScreenSize();
         setSize(screenSize.width / 4, screenSize.height / 5);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
     }
 
     private class signinListener implements ActionListener
@@ -66,13 +73,71 @@ class signinFrame extends JFrame
                 JOptionPane.showMessageDialog(null, "uid应当为10位","错误", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            if (cmd.equals("登录"))
-            {
-                System.out.println(uid);
-            }
-            else
-            {
-                System.out.println(password);
+            try {
+                DataOutputStream speakerWriter = new DataOutputStream(speaker.getOutputStream());
+                DataInputStream speakerReader = new DataInputStream(speaker.getInputStream());
+                if (cmd.equals("登录"))
+                {
+                    String msg = "signin " + uid + " " + new String(password);
+                    speakerWriter.write(msg.getBytes());
+                    byte[] buff = new byte[1024];
+                    speakerReader.read(buff);
+                    String reply = new String(buff, StandardCharsets.UTF_8).trim();
+                    if(reply.equals("signin successfully"))
+                    {
+                        speakerReader.close();
+                        speakerWriter.close();
+                        dispose();
+                        JFrame chacha = new chatFrame(speaker, uid);
+                        chacha.setVisible(true);
+                    }
+                    else if(reply.equals("uid not exists"))
+                    {
+                        JOptionPane.showMessageDialog(null, 
+                        "uid不存在","错误", JOptionPane.ERROR_MESSAGE);
+                    }
+                    else if(reply.equals("wrong password"))
+                    {
+                        JOptionPane.showMessageDialog(null,
+                        "密码错误","错误", JOptionPane.ERROR_MESSAGE);
+                    }
+                    else
+                    {
+                        JOptionPane.showMessageDialog(null,
+                        "登陆错误","错误", JOptionPane.ERROR_MESSAGE);
+                    }
+ 
+                }
+                else if(cmd.equals("注册"))
+                {
+                    String msg = "signup " + uid + " " + new String(password);
+                    System.out.println(msg);
+                    speakerWriter.write(msg.getBytes());
+                    byte[] buff = new byte[1024];
+                    speakerReader.read(buff);
+                    String reply = new String(buff, StandardCharsets.UTF_8).trim();
+                    System.out.println(reply);
+                    if(reply.equals("signup successfully"))
+                    {
+                        speakerReader.close();
+                        speakerWriter.close();
+                        dispose();
+                        JFrame chacha = new chatFrame(speaker, uid);
+                        chacha.setVisible(true);
+                    }
+                    else if(reply.equals("uid already exists"))
+                    {
+                        JOptionPane.showMessageDialog(null,
+                        "此uid已存在","错误", JOptionPane.ERROR_MESSAGE);
+                    }
+                    else
+                    {
+                        JOptionPane.showMessageDialog(null,
+                        "登陆错误","错误", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            } catch(Exception ee){
+                ee.printStackTrace();
             }
         }
     }

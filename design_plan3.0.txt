@@ -1,0 +1,114 @@
+客户端维护两个socket对象，分别为listener和speaker，
+程序开始后，listener进入循环等待状态，被动响应来自服务器的信息，
+如好友消息，文件接受，通话请求，他人请求加与好友等。
+speaker是客户端可以主动操作的网络接口，完成如
+请求加他人好友，发送消息，发送文件，请求通话等。
+流程内容：
+    用户登录/注册：
+        登录前客户端先初始化一个socket对象(tcp连接)，speaker
+        speaker向服务器发送消息(signin uid password)，uid为10位阿拉伯数字字符串，
+        password由客户端进行hash编码后发往服务器，服务器回应'signin successfully'、
+        'uid not exits'或者'wrong password'。
+        登陆成功后，建立另一个socket对象，listener，发送"hello from (uid)"，
+    	以让服务器知悉listener的端口号。
+
+        注册时大致同理，先有speaker发送(signup uid password)
+        服务器为其建档并回复speaker'signup successfully'或'uid already exists'。
+
+        关于好友列表的好友状态，登录成功后客户端先发送"friendlist request"
+        server会向client发送'signin successfully\n'+（好友列表即好友状态）
+        好友即其状态格式为'friend uid2 T\n'  ‘friend uid3 F\n
+    添加好友：
+        客户端uid1向服务器发送"addFriend (uid1) (uid2)"
+        若uid2不在线，服务器回复uid1"not online"，否则向uid2发送
+        "addFriend (uid1) (uid2)"
+        若对方同意，uid2向服务器发送"addFriend agree"，不同意则发送"addFriend disagree"，
+        服务器发送给uid1"agree"或"disagree"。
+
+    删除好友：暂未添加此功能
+
+    发送文字消息：
+        客户端向服务器发送"text (uid1) (uid2) timestamp \n (文本内容)"
+        服务器无需回复，若uid2不在线，存入聊天记录即可。
+
+    离线文件传输：
+        客户端发送"offlinefile (uid1) (uid2) timestamp (文件名称) \n (文件大小)"
+        服务器回复"ready"，客户端开始发送文件内容。服务器接收完文件后，若uid2在线，则
+        服务器向uid2发送"file (uid1) (uid2) timestamp (文件名称) \n (文件大小)"
+        收到来自uid2"offlinefileget (uid1) (uid2) timestamp (文件名称) \n (文件大小)"，开始传输文件。
+
+    在线文件传输：
+        客户端发送"onlinefile (uid1) (uid2) timestamp (文件名称) \n (文件大小)"
+        若uid2不在线，服务器回复uid1"notonline"
+        服务器给uid1发送uid2的信息"file (ip) (port)"，并将上面uid1发送给服务器的字符串
+        转呈给uid2。
+
+    聊天记录获取：
+        客户端发送"history (uid1) (uid2)"，表示uid1获取uid1 和uid2的聊天记录。
+        服务器将聊天记录的字符串逐条发送，以"flag"结尾，发送给uid1
+
+    在线通话：
+        uid1想要给uid2打电话，于是uid1向服务器发送"call request (uid1) (uid2)"，如果uid2不在线
+        服务器回复uid1 "notonline"，如果在线，服务器发送给uid2"call request (uid1) (uid2)"
+        如果uid2不同意通话，发送给服务器"call disagree"，服务器发送给uid1"disagree"，如果uid2同意
+        通话，发送给服务器"call agree"，服务器发送给uid1"agree (ip) (port)"，发送给
+        uid2"call agree (ip) (port)"。
+
+    用户退出：
+        客户端发送给服务器"offline (uid)"
+
+目前各种协议总结：
+    客户端处理的：
+        登录阶段：
+            都由speaker来处理
+            "signin successfully"
+            "uid not exist"
+            "wrong password"
+            'signup successfully'
+            'uid already exists'
+        登陆成功后：
+            speaker会接收的信息：
+                发送加好友信息后：
+                    "not online"
+                    "agree"
+                    "disagree"
+                离线文件传输：
+                    "ready"
+                在线文件传输：
+                    "notonline"
+                    "onlinefile (ip) (port)"
+                获取聊天记录：
+                    "(type) (uid1) (uid2) timestamp \n (内容)\n"
+                在线通话：
+                    "notonline"
+                    "agree (ip) (port)"
+                    "disagree"
+            
+            speaker会发送的信息：
+                "addFriend (uid1) (uid2)"
+                "text (uid1) (uid2) timestamp \n (文本内容)"
+                "offlinefile (uid1) (uid2) timestamp (文件名称) \n (文件大小)"
+                "onlinefile (uid1) (uid2) timestamp (文件名称) \n (文件大小)"
+                "history (uid1) (uid2)"
+                "call request (uid1) (uid2)"
+
+            listener会接收的信息：
+                "text (uid1) (uid2) timestamp \n (文本内容)"
+                "file (uid1) (uid2) timestamp (文件名称) \n (文件大小)"
+                "addFriend (uid1) (uid2)"
+                "call request (uid1) (uid2)"
+
+            listener会发送的信息：
+                收到好友添加请求后：
+                    "addFriend agree"
+                    "addFriend disagree"
+                收到文件传输请求后:
+                    "ready"
+                收到电话请求后：
+                    "call disagree"
+                    "call agree"
+
+关于好友列表的好友状态，登录成功后server会向client发送'signin successfully\n'+（好友列表即好友状态）
+好友即其状态格式为'friend uid2 T\n'  ‘friend uid3 F\n’
+若某位好友改变其状态，其好友的listener socket会收到状态信息，格式于上方相同。
+对于新添加成功的好友，默认其状态为在线
