@@ -34,7 +34,7 @@ speaker是客户端可以主动操作的网络接口，完成如
     离线文件传输：
         客户端发送"offlinefile (uid1) (uid2) timestamp (文件名称) \n (文件大小)"
         服务器回复"ready"，客户端开始发送文件内容。服务器接收完文件后，若uid2在线，则
-        服务器向uid2发送"file (uid1) (uid2) timestamp (文件名称) \n (文件大小)"
+        服务器向uid2发送"offlinefile (uid1) (uid2) timestamp (文件名称) \n (文件大小)"
         收到来自uid2"offlinefileget (uid1) (uid2) timestamp (文件名称) \n (文件大小)"，开始传输文件。
 
     在线文件传输：
@@ -45,7 +45,7 @@ speaker是客户端可以主动操作的网络接口，完成如
 
     聊天记录获取：
         客户端发送"history (uid1) (uid2)"，表示uid1获取uid1 和uid2的聊天记录。
-        服务器将聊天记录的字符串逐条发送，以"flag"结尾，发送给uid1
+        服务器将聊天记录的字符串逐条发送，客户端每条回以"ok"，以"flag"结尾，发送给uid1
 
     在线通话：
         uid1想要给uid2打电话，于是uid1向服务器发送"call request (uid1) (uid2)"，如果uid2不在线

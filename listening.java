@@ -50,6 +50,7 @@ public class listening implements Runnable {
             while(true)
             {
                 int buffSize = listenerReader.read(buff);
+                if(buffSize == -1) continue;
                 String msg = new String(buff, 0, buffSize, StandardCharsets.UTF_8);
                 String[] msgs = msg.split(" ", 3);
                 if(msgs[0].equals("text"))
@@ -66,13 +67,14 @@ public class listening implements Runnable {
                     if (ans == JOptionPane.YES_OPTION)
                     {
                         listenerWriter.write("addFriend agree".getBytes());
+                        oFrame.recvFriend(msgs[1]);
                     }
                     else
                     {
                         listenerWriter.write("addFriend disagree".getBytes());
                     }
                 }
-                else if(msgs[0].equals("file"))
+                else if(msgs[0].equals("offlinefile"))
                 {
                     oFrame.addFile(msg);
                 }

@@ -8,7 +8,6 @@ import java.text.SimpleDateFormat;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.Arrays;
 
 class chatFrame extends JFrame
 {
@@ -80,10 +79,14 @@ class chatFrame extends JFrame
             ArrayList<String> chatHistory = chattingBoy.getChatHistory();
             for (String s : chatHistory)
             {
-                String[] msgs = s.split(" |\n");
+                String[] msgs = s.split(" |\n", 5);
                 if (msgs[0].equals("text"))
                 {
                     renderText(msgs);
+                }
+                else if(msgs[0].equals("offlinefile"))
+                {
+                    renderFile(s);
                 }
             }
         }
@@ -109,6 +112,7 @@ class chatFrame extends JFrame
                             String strbuff = new String(buff, 0, buffSize, StandardCharsets.UTF_8);
                             if (strbuff.equals("flag")) break;
                             else historyBuff.add(strbuff);
+                            speakerWriter.write("ok".getBytes());
                         }
                         chattingBoy.setChatHistory(historyBuff);
                         showChatHistory();
@@ -136,27 +140,27 @@ class chatFrame extends JFrame
                             "此文件已下载","错误", JOptionPane.ERROR_MESSAGE);
                             return;
                         }
-                        file.mkdirs();
+                        file.createNewFile();
                         ajust_msg[0] = "offlinefileget";
-                        String ajusted_msg = Arrays.toString(ajust_msg);
+                        String ajusted_msg = ajust_msg[0] + " " + ajust_msg[1]
+                            + " " + ajust_msg[2] + " " + ajust_msg[3] + " " +
+                            ajust_msg[4] + "\n" + ajust_msg[5];
+                        ajusted_msg += "\n";
                         speakerWriter.write(ajusted_msg.getBytes());
                         byte[] buff = new byte[1024];
-                        int buffSize = speakerReader.read(buff);
-                        String reply = new String(buff, 0, buffSize, StandardCharsets.UTF_8);
+                        int buffSize = 0;
                         _d.chatHistoryModel.addElement("开始下载");
-                        if (reply.equals("ready"))
+                        FileOutputStream fileWriter = new FileOutputStream(file);
+                        int remainSieze = Integer.parseInt(ajust_msg[5].replace("\n",""));
+                        while(remainSieze > 0)
                         {
-                            FileOutputStream fileWriter = new FileOutputStream(file);
-                            int packetLength = 0;
-                            while(true)
-                            {
-                                packetLength = speakerReader.read(buff);
-                                if(packetLength == -1) break;
-                                fileWriter.write(buff, 0, packetLength);
-                            }
-                            fileWriter.close();
-                            _d.chatHistoryModel.addElement("下载完成");
+                            buffSize = speakerReader.read(buff);
+                            fileWriter.write(buff, 0, buffSize);
+                            remainSieze -= buffSize;
                         }
+                        fileWriter.close();
+                        _d.chatHistoryModel.addElement("下载完成");
+                        System.out.println("ok");
                     }catch(Exception ee)
                     {
                         ee.printStackTrace();
@@ -242,12 +246,12 @@ class chatFrame extends JFrame
                 {
                     String toSend = input.getText();
                     toSend = "text " + myUid + " " + chattingBoy.getUid() + " " +
-                       ft.format(new Date()) + "\n" + toSend;
+                       ft.format(new Date()) + "\n" + toSend + "\n";
                     chattingBoy.addChatHistory(toSend);
                     renderText(toSend.split(" |\n", 5));
                     try
                     {
-                        speakerWriter.write(toSend.getBytes());
+                        speakerWriter.write(toSend.getBytes("UTF-8"));
                     }catch(Exception ee){
                         ee.printStackTrace();
                     }
@@ -273,7 +277,7 @@ class chatFrame extends JFrame
                 String fileName = file.getName();
                 String fileSize = Long.toString(file.length());
                 String msg = "offlinefile " + myUid + " " + chattingBoy.getUid() + " "
-                    + ft.format(new Date()) + " " + fileName + "\n" + fileSize;
+                    + ft.format(new Date()) + " " + fileName + "\n" + fileSize + "\n";
                 String reply;
                 byte[] data = new byte[1024];
                 try {
@@ -288,15 +292,15 @@ class chatFrame extends JFrame
                         InputStream fileReader = new FileInputStream(file);
                         while(true)
                         {
-                            int ll = fileReader.read(data);
-                            if(ll == -1) break;
-                            speakerWriter.write(data);
+                            buffSize = fileReader.read(data);
+                            if(buffSize == -1) break;
+                            speakerWriter.write(data, 0, buffSize);
                         }
                         fileReader.close();
                         renderFile(msg);
-                        String end = "<html><font size=\"2\">" +
+                        toSend = "<html><font size=\"2\">" +
                             "发送完成!" + "</font></html>";
-                        _d.chatHistoryModel.addElement(end);
+                        _d.chatHistoryModel.addElement(toSend);
                     }
                 }catch(Exception ee)
                 {
@@ -388,7 +392,7 @@ class chatFrame extends JFrame
             if(indexOfTheBoy != -1){
                 friend theBoy = myFriends.get(indexOfTheBoy);
                 theBoy.addChatHistory(msg);
-                if(chattingBoy.equals(theBoy))
+                if(chattingBoy != null && chattingBoy.equals(theBoy))
                 {
                     renderText(msgs);
                 }
@@ -415,7 +419,7 @@ class chatFrame extends JFrame
         {
             text = text + "<font size=\"3\" color=\"blue\">";
         }
-        text = text + msgs[1] + msgs[3] + "</font><br>";
+        text = text + msgs[1] + "  " + msgs[3] + "</font><br>";
         text = text + "<font size=\"5\">" + msgs[4] + "</font></html>";
         _d.chatHistoryModel.addElement(text);
     }
@@ -447,13 +451,13 @@ class chatFrame extends JFrame
     public void addFile(String msg)
     {
         String[] msgs = msg.split(" |\n", 6);
-        if(msgs[2] == myUid)
+        if(msgs[2].equals(myUid))
         {
             int indexOfTheBoy = myFriends.indexOf(new friend(msgs[1]));
             if(indexOfTheBoy != -1){
                 friend theBoy = myFriends.get(indexOfTheBoy);
                 theBoy.addChatHistory(msg);
-                if(chattingBoy.equals(theBoy))
+                if(chattingBoy != null && chattingBoy.equals(theBoy))
                 {
                     renderFile(msg);
                 }
@@ -469,5 +473,10 @@ class chatFrame extends JFrame
         }
     }
 
+    public void recvFriend(String uid)
+    {
+        myFriends.add(new friend(uid));
+        _f.friendUid.addElement(uid);
+    }
 
 }
